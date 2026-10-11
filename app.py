@@ -4,7 +4,6 @@ import plotly.graph_objects as go
 import streamlit as st
 from dotenv import load_dotenv
 
-from gcc_intelligence.sample_data import demo_metrics
 from gcc_intelligence.scoring import score_cities, DEFAULT_WEIGHTS, METRICS
 from gcc_intelligence.db import database_status, load_metrics, load_market_observations, initialize_database
 from gcc_intelligence.llm import generate_decision_brief
@@ -156,8 +155,11 @@ else:
             ranked[key] = float("nan")
     ranked["evidence_coverage"] = ranked["evidence_coverage"].fillna(0)
 ranked = ranked.sort_values("overall_score", ascending=False, na_position="last").reset_index(drop=True)
-ranked["rank"] = range(1, len(ranked) + 1)
-ranked["rank_label"] = ranked["rank"].map(lambda n: f"#{n}")
+ranked["rank"] = pd.NA
+scored_indices = ranked[ranked["overall_score"].notna()].sort_values("overall_score", ascending=False).index
+for position, row_index in enumerate(scored_indices, start=1):
+    ranked.loc[row_index, "rank"] = position
+ranked["rank_label"] = ranked["rank"].map(lambda n: f"#{int(n)}" if pd.notna(n) else "Not scored")
 best_rows = ranked[ranked["overall_score"].notna()]
 best = best_rows.iloc[0] if not best_rows.empty else None
 has_scored_metrics = best is not None
