@@ -8,6 +8,7 @@ from gcc_intelligence.sample_data import demo_metrics
 from gcc_intelligence.scoring import score_cities, DEFAULT_WEIGHTS, METRICS
 from gcc_intelligence.db import database_status, load_metrics, load_market_observations, initialize_database
 from gcc_intelligence.llm import generate_decision_brief
+from gcc_intelligence.research.graph import run_market_research
 
 load_dotenv()
 st.set_page_config(page_title="GCC Intelligence", page_icon="🌐", layout="wide")
@@ -142,7 +143,7 @@ c2.metric("Current leader", best["city"] if best is not None else "Not enough da
 c3.metric("Top score", f'{best["overall_score"]:.1f}/100' if best is not None else "—")
 c4.metric("Average metric coverage", f'{ranked["evidence_coverage"].mean():.0f}%' if not ranked.empty else "0%")
 
-tab1, tab2, tab3, tab4 = st.tabs(["City comparison", "Market Signals", "Evidence explorer", "Decision brief"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["City comparison", "Market Signals", "Evidence explorer", "Decision brief", "Live Research"])
 
 with tab1:
     st.subheader("Compare city suitability")
@@ -330,5 +331,74 @@ with tab4:
         if note:
             st.caption(note)
 
+
+with tab5:
+    st.subheader("Live GCC Market Research")
+    st.caption("On-demand web research using Tavily, with optional Groq synthesis. Search results remain unverified evidence and do not alter city scores.")
+    with st.form("live_market_research_form"):
+        research_city = st.selectbox("Research city", ["Bengaluru", "Hyderabad", "Pune", "Chennai"], key="research_city")
+        research_question = st.text_input(
+            "What would you like to investigate?",
+            value="Recent GCC expansion, hiring, office demand, talent and infrastructure signals",
+            max_chars=500,
+        )
+        run_research = st.form_submit_button("Research this city", type="primary")
+    if not os.getenv("TAVILY_API_KEY", "").strip():
+        st.info("Live research is not configured yet. Add TAVILY_API_KEY to your local .env file. The rest of the dashboard works without it.")
+    if run_research:
+        if not os.getenv("TAVILY_API_KEY", "").strip():
+            st.error("TAVILY_API_KEY is missing. Add the key to .env and restart the app.")
+        else:
+            try:
+                with st.spinner("Searching sources, checking evidence fields, and preparing a brief…"):
+                    research_result = run_market_research(research_city, research_question)
+                st.markdown("### Research brief")
+                st.markdown(research_result.get("summary", "No summary returned."))
+                if research_result.get("run_id"):
+                    st.caption(f"Research run saved to PostgreSQL · run ID {research_result['run_id']}")
+                elif os.getenv("DATABASE_URL", "").strip():
+                    st.caption("Research completed, but the run could not be saved to PostgreSQL.")
+                else:
+                    st.caption("DATABASE_URL is not configured; results were kept in this session only.")
+                errors = research_result.get("errors", [])
+                if errors:
+                    with st.expander("Workflow notes"):
+                        for error in errors:
+                            st.write(f"• {error}")
+                evidence = research_result.get("evidence", [])
+                st.markdown(f"### Sources retrieved ({len(evidence)})")
+                if evidence:
+                    for item in evidence:
+                        with st.expander(item.get("title", "Untitled source")):
+                            st.markdown(f"[Open original source]({item.get('url', '')})")
+                            st.caption(
+                                f"Domain: {item.get('source_domain', 'unknown')} · "
+                                f"Published: {item.get('published_date') or 'Date not supplied'} · "
+                                f"Status: {item.get('evidence_status', 'UNVERIFIED')}"
+                            )
+                            st.write(item.get("snippet", ""))
+                            st.caption(item.get("validation_note", ""))
+                    export_rows = [{
+                        "city": research_city,
+                        "title": item.get("title"),
+                        "url": item.get("url"),
+                        "source_domain": item.get("source_domain"),
+                        "published_date": item.get("published_date"),
+                        "retrieved_at": item.get("retrieved_at"),
+                        "evidence_status": item.get("evidence_status"),
+                        "snippet": item.get("snippet"),
+                    } for item in evidence]
+                    st.download_button(
+                        "Export research evidence as CSV",
+                        pd.DataFrame(export_rows).to_csv(index=False).encode("utf-8"),
+                        file_name=f"gcc_research_{research_city.lower()}.csv",
+                        mime="text/csv",
+                    )
+                else:
+                    st.info("No usable source records were returned for this run.")
+            except Exception as exc:
+                st.error(f"Live research could not complete ({type(exc).__name__}). Check the API key, provider quota, and network access.")
+    st.warning("Trust guardrail: URL validation is not factual verification. All search results are labelled UNVERIFIED until reviewed; live findings never modify the synthetic demo metrics or ranking.")
+
 st.divider()
-st.caption("GCC Intelligence MVP · Deterministic scoring · PostgreSQL persistence · Optional Groq explanation")
+st.caption("GCC Intelligence MVP · Deterministic scoring · PostgreSQL persistence · Optional Groq explanation · On-demand live research")
