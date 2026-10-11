@@ -1,5 +1,6 @@
-"""Optional local PostgreSQL persistence; demo mode works without a database."""
+"""Optional PostgreSQL persistence; the illustrative demo works without a database."""
 from __future__ import annotations
+
 import os
 import pandas as pd
 from sqlalchemy import create_engine, text
@@ -27,7 +28,6 @@ def _engine():
     url = os.getenv("DATABASE_URL", "").strip()
     if not url:
         return None
-    # SQLAlchemy's psycopg v3 driver is used for PostgreSQL.
     if url.startswith("postgres://"):
         url = url.replace("postgres://", "postgresql+psycopg://", 1)
     elif url.startswith("postgresql://"):
@@ -35,33 +35,46 @@ def _engine():
     return create_engine(url, pool_pre_ping=True, future=True)
 
 def database_status() -> tuple[bool, str]:
+    """Return a connection status without leaking connection strings or credentials."""
     try:
         engine = _engine()
         if engine is None:
             return False, "DATABASE_URL is not configured."
-        with engine.connect() as connection:
-            connection.execute(text("SELECT 1"))
-        return True, "Connected to PostgreSQL."
+        try:
+            with engine.connect() as connection:
+                connection.execute(text("SELECT 1"))
+            return True, "Connected to PostgreSQL."
+        finally:
+            engine.dispose()
     except Exception as exc:
-        return False, f"PostgreSQL connection failed: {type(exc).__name__}: {exc}"
+        return False, f"PostgreSQL connection failed ({type(exc).__name__}). Check DATABASE_URL and network access."
 
 def initialize_database() -> tuple[bool, str]:
     try:
         engine = _engine()
         if engine is None:
             return False, "Set DATABASE_URL in .env before initializing PostgreSQL."
-        with engine.begin() as connection:
-            connection.execute(text(DDL))
-        return True, "city_metrics table is ready."
+        try:
+            with engine.begin() as connection:
+                connection.execute(text(DDL))
+            return True, "city_metrics table is ready."
+        finally:
+            engine.dispose()
     except Exception as exc:
-        return False, f"Could not initialize database: {type(exc).__name__}: {exc}"
+        return False, f"Could not initialize database ({type(exc).__name__}). Check connection settings and database permissions."
 
 def load_metrics() -> pd.DataFrame | None:
+    """Load records. None means no DATABASE_URL; database errors are raised to the UI."""
     engine = _engine()
     if engine is None:
         return None
-    with engine.connect() as connection:
-        try:
-            return pd.read_sql(text("SELECT city, metric_key, metric_label, value, unit, source_name, source_url, observed_at, evidence_status, caveat FROM city_metrics ORDER BY city, metric_key"), connection)
-        except SQLAlchemyError:
-            return None
+    try:
+        with engine.connect() as connection:
+            return pd.read_sql(
+                text("SELECT city, metric_key, metric_label, value, unit, source_name, source_url, observed_at, evidence_status, caveat FROM city_metrics ORDER BY city, metric_key"),
+                connection,
+            )
+    except SQLAlchemyError:
+        raise
+    finally:
+        engine.dispose()
