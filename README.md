@@ -57,11 +57,16 @@ requirements.txt
 .env.example
 ```
 
+## Prototype data behavior
+- City comparison, Evidence explorer, Market Signals and Decision brief use the same selected-city scope.
+- `market_observations` stores raw office-market/GCC indicators; these retain their source units and are not converted into suitability scores.
+- `city_metrics` is only for normalized 0–100 desirability scores. Rows explicitly marked `ILLUSTRATIVE`, `SYNTHETIC`, `DEMO`, or `DEMO_ONLY` are excluded from rankings.
+- If normalized scores are missing, the app presents available market indicators and evidence instead of generating a definitive city ranking.
+
 ## Planned next steps
-1. Replace synthetic fixtures with a curated evidence dataset and source registry.
-2. Add tests for scoring, missing-data behavior, and weight sensitivity.
-3. Add assessment save/load and decision brief export.
-4. Integrate research APIs/MCP after the core workflow is stable.
+1. Add tests for scoring, missing-data behavior, and weight sensitivity.
+2. Add assessment save/load and decision brief export.
+3. Integrate research APIs/MCP after the core workflow is stable.
 
 
 ## Market Signals dataset
