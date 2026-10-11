@@ -12,11 +12,13 @@ from gcc_intelligence.llm import generate_decision_brief
 load_dotenv()
 st.set_page_config(page_title="GCC Intelligence", page_icon="🌐", layout="wide")
 
-NAVY = "#E5EDF5"
-TEAL = "#2DD4BF"
-BLUE = "#60A5FA"
-MUTED = "#9FB0C3"
-GRID = "#294158"
+NAVY = "#F4F5FA"
+TEAL = "#2E9CCA"
+BLUE = "#29648A"
+MUTED = "#AAABB8"
+GRID = "#464866"
+PANEL = "#464866"
+BG = "#25274D"
 METRIC_LABELS = {
     "talent_depth": "Talent depth",
     "operating_cost": "Cost attractiveness",
@@ -26,25 +28,27 @@ METRIC_LABELS = {
 
 st.markdown("""
 <style>
-:root { --primary-color: #2DD4BF; }
-.stApp { background: #081522; color: #E5EDF5; }
+:root { --primary-color: #2E9CCA; }
+.stApp { background: #25274D; color: #F4F5FA; }
 .block-container { padding-top: 1.25rem; padding-bottom: 2rem; max-width: 1500px; }
-[data-testid="stHeader"] { background: rgba(8,21,34,.92); }
-[data-testid="stSidebar"] { background: #10243A; border-right: 1px solid #294158; }
-[data-testid="stSidebar"] * { color: #E5EDF5; }
-[data-testid="stSidebar"] [data-baseweb="slider"] div[role="slider"] { background: #2DD4BF; }
-[data-testid="stMetric"] { background: #10243A; border: 1px solid #294158; padding: 14px 16px; border-radius: 12px; }
-[data-testid="stMetricLabel"] { color: #9FB0C3; }
-[data-testid="stMetricValue"] { color: #E5EDF5; }
-h1, h2, h3, h4 { color: #E5EDF5; letter-spacing: -0.02em; }
-p, label, .stMarkdown, [data-testid="stCaptionContainer"] { color: #D2DDE8; }
-div[data-testid="stTabs"] button[aria-selected="true"] { color: #2DD4BF; border-bottom-color: #2DD4BF; }
-.stButton > button[kind="primary"] { background: #0F9F91; border-color: #2DD4BF; color: #081522; }
+[data-testid="stHeader"] { background: rgba(37,39,77,.94); }
+[data-testid="stSidebar"] { background: #464866; border-right: 1px solid #29648A; }
+[data-testid="stSidebar"] * { color: #F4F5FA; }
+[data-testid="stSidebar"] [data-baseweb="slider"] div[role="slider"] { background: #2E9CCA; }
+[data-testid="stMetric"] { background: #464866; border: 1px solid #29648A; padding: 14px 16px; border-radius: 12px; }
+[data-testid="stMetricLabel"] { color: #AAABB8; }
+[data-testid="stMetricValue"] { color: #F4F5FA; }
+h1, h2, h3, h4 { color: #F4F5FA; letter-spacing: -0.02em; }
+p, label, .stMarkdown, [data-testid="stCaptionContainer"] { color: #E4E5EE; }
+div[data-testid="stTabs"] button[aria-selected="true"] { color: #2E9CCA; border-bottom-color: #2E9CCA; }
+.stButton > button[kind="primary"] { background: #2E9CCA; border-color: #2E9CCA; color: #25274D; font-weight: 650; }
 .stButton > button { border-radius: 9px; }
-[data-testid="stDataFrame"], [data-testid="stTable"] { border: 1px solid #294158; border-radius: 10px; }
-div[data-testid="stAlert"] { border-radius: 10px; background: #10243A; }
-a { color: #60A5FA; }
-hr { border-color: #294158; }
+[data-testid="stDataFrame"], [data-testid="stTable"] { border: 1px solid #29648A; border-radius: 10px; }
+div[data-testid="stAlert"] { border-radius: 10px; background: #464866; }
+a { color: #55BDE7; }
+hr { border-color: #29648A; }
+[data-testid="stExpander"] { background: rgba(70,72,102,.45); border: 1px solid #464866; border-radius: 10px; }
+[data-testid="stTextInput"] input, [data-testid="stSelectbox"] div[data-baseweb="select"] { background: #464866; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -167,7 +171,7 @@ with tab1:
         radar_values = [radar_row[k] if pd.notna(radar_row[k]) else 0 for k in METRICS]
         radar_labels = [METRIC_LABELS[k] for k in METRICS]
         radar = go.Figure()
-        radar.add_trace(go.Scatterpolar(r=radar_values + radar_values[:1], theta=radar_labels + radar_labels[:1], fill="toself", name=radar_city, line=dict(color=TEAL, width=2), fillcolor="rgba(15,157,145,0.16)"))
+        radar.add_trace(go.Scatterpolar(r=radar_values + radar_values[:1], theta=radar_labels + radar_labels[:1], fill="toself", name=radar_city, line=dict(color=TEAL, width=2), fillcolor="rgba(46,156,202,0.22)"))
         radar.update_layout(height=330, showlegend=False, margin=dict(l=26, r=26, t=20, b=20), paper_bgcolor="rgba(0,0,0,0)", font_color=NAVY, polar=dict(bgcolor="rgba(0,0,0,0)", radialaxis=dict(visible=True, range=[0, 100], gridcolor=GRID, color=MUTED), angularaxis=dict(gridcolor=GRID, color=MUTED)))
         st.plotly_chart(radar, use_container_width=True)
         missing = [METRIC_LABELS[k] for k in METRICS if pd.isna(radar_row[k])]
@@ -247,7 +251,7 @@ with tab2:
             order = frame[frame["period"] == "2025"].sort_values("value", ascending=True)["city"].tolist()
             fig = px.bar(frame, x="value", y="city", color="period", barmode="group", orientation="h",
                          category_orders={"city":order,"period":["2024","2025"]},
-                         color_discrete_map={"2024":"#60A5FA","2025":"#2DD4BF"},
+                         color_discrete_map={"2024":"#29648A","2025":"#2E9CCA"},
                          labels={"value":"Million sq ft","city":"","period":"Year"})
             fig.update_layout(height=max(330,len(order)*40),margin=dict(l=8,r=18,t=8,b=12),
                 paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font_color=NAVY,
@@ -263,21 +267,30 @@ with tab2:
         gc = gc[gc["period"].astype(str) == "FY26E"].sort_values("value", ascending=True)
         if not gc.empty:
             fig = px.bar(gc,x="value",y="city",orientation="h",text=gc["value"].map(lambda v:f"{int(v):,}+"),
-                         color_discrete_sequence=["#2DD4BF"],labels={"value":"Estimated GCC units (lower bound)","city":""})
+                         color_discrete_sequence=["#2E9CCA"],labels={"value":"Estimated GCC units (lower bound)","city":""})
             fig.update_traces(textposition="outside",cliponaxis=False)
             fig.update_layout(height=max(340,len(gc)*38),margin=dict(l=8,r=55,t=8,b=12),
                 paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font_color=NAVY,
                 xaxis=dict(gridcolor=GRID,zeroline=False),yaxis=dict(gridcolor="rgba(0,0,0,0)"))
             st.plotly_chart(fig,use_container_width=True)
-        with st.expander("Sources, definitions and evidence status"):
-            for source_name, rows in market.groupby("source_name",dropna=False):
+        with st.expander("Sources & methodology"):
+            st.caption("One concise summary per source; record-level caveats remain available in the downloaded data.")
+            for source_name, rows in market.groupby("source_name", dropna=False):
+                statuses = rows["evidence_status"].fillna("UNVERIFIED").astype(str).str.upper()
+                dates = rows["source_published_at"].dropna().astype(str).unique().tolist()
+                urls = rows["source_url"].dropna().unique().tolist()
                 st.markdown(f"**{source_name}**")
-                for url in rows["source_url"].dropna().unique():
-                    st.markdown(f"[Open source report]({url})")
-                st.caption("Publication date: "+", ".join(rows["source_published_at"].dropna().astype(str).unique()))
-                st.caption("Evidence status: "+", ".join(sorted(rows["evidence_status"].fillna("UNVERIFIED").astype(str).unique())))
-                for caveat in rows["caveat"].dropna().unique():
-                    st.write(caveat)
+                st.caption(f"{len(rows)} observations · Published: {', '.join(dates) if dates else 'Date not supplied'} · Status: {', '.join(sorted(statuses.unique()))}")
+                if urls:
+                    st.markdown(f"[Open original source]({urls[0]})")
+                source_text = " ".join(rows["caveat"].dropna().astype(str).unique().tolist()).lower()
+                if "lower bound" in source_text or "user-supplied figure" in source_text:
+                    st.write("**Caveat:** City-level GCC counts are lower bounds (shown with “+”); exact figures have not been independently confirmed.")
+                elif "overall office-market" in source_text or "not gcc-only" in source_text:
+                    st.write("**Caveat:** Office-market activity is a proxy for the wider ecosystem, not GCC-only leasing. Gross leasing excludes term renewals.")
+                else:
+                    st.write("**Caveat:** Review the underlying observation definitions before using these figures for a decision.")
+                st.divider()
         st.download_button("Download loaded market observations",market.to_csv(index=False).encode("utf-8"),file_name="market_observations_export.csv",mime="text/csv")
 
 with tab3:
