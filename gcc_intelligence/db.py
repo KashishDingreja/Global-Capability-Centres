@@ -5,7 +5,7 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
-DDL = """
+DDL_CITY_METRICS = """
 CREATE TABLE IF NOT EXISTS city_metrics (
  id BIGSERIAL PRIMARY KEY, city TEXT NOT NULL, metric_key TEXT NOT NULL,
  metric_label TEXT NOT NULL, value DOUBLE PRECISION, unit TEXT, source_name TEXT,
@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS city_metrics (
  caveat TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
  UNIQUE(city, metric_key, source_name, observed_at)
 );
+"""
+
+DDL_MARKET_OBSERVATIONS = """
 CREATE TABLE IF NOT EXISTS market_observations (
  id BIGSERIAL PRIMARY KEY, city TEXT NOT NULL, metric_key TEXT NOT NULL,
  metric_label TEXT NOT NULL, value DOUBLE PRECISION, unit TEXT, period TEXT NOT NULL,
@@ -43,7 +46,9 @@ def initialize_database() -> tuple[bool,str]:
   engine=_engine()
   if engine is None: return False,"Set DATABASE_URL in .env before initializing PostgreSQL."
   try:
-   with engine.begin() as connection: connection.execute(text(DDL))
+   with engine.begin() as connection:
+    connection.execute(text(DDL_CITY_METRICS))
+    connection.execute(text(DDL_MARKET_OBSERVATIONS))
    return True,"city_metrics and market_observations tables are ready."
   finally: engine.dispose()
  except Exception as exc:
