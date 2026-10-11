@@ -90,9 +90,15 @@ if use_database:
         try:
             stored = load_metrics()
             if stored is not None and not stored.empty:
-                metrics = stored
-                data_mode = "DATABASE CITY SCORES"
-                db_detail = f"Connected · {len(stored):,} city metric records loaded."
+                # Never rank explicitly synthetic/demo fixtures as real city intelligence.
+                status = stored["evidence_status"].fillna("UNVERIFIED").astype(str).str.upper()
+                usable = stored[~status.isin(["ILLUSTRATIVE", "SYNTHETIC", "DEMO", "DEMO_ONLY"])].copy()
+                if not usable.empty:
+                    metrics = usable
+                    data_mode = "DATABASE CITY SCORES"
+                    db_detail = f"Connected · {len(usable):,} non-demo city metric records loaded."
+                else:
+                    db_detail = "Connected, but city_metrics contains only illustrative/demo records. Those records are excluded from ranking."
             else:
                 db_detail = "Connected; no normalized city scores found. Using available market observations instead."
         except Exception as exc:
