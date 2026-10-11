@@ -6,16 +6,17 @@ from dotenv import load_dotenv
 
 from gcc_intelligence.sample_data import demo_metrics
 from gcc_intelligence.scoring import score_cities, DEFAULT_WEIGHTS, METRICS
-from gcc_intelligence.db import database_status, load_metrics, initialize_database
+from gcc_intelligence.db import database_status, load_metrics, load_market_observations, initialize_database
 from gcc_intelligence.llm import generate_decision_brief
 
 load_dotenv()
 st.set_page_config(page_title="GCC Intelligence", page_icon="🌐", layout="wide")
 
-NAVY = "#10243A"
-TEAL = "#0F9D91"
-PALE_TEAL = "#E7F5F3"
-SLATE = "#5B6B7A"
+NAVY = "#E5EDF5"
+TEAL = "#2DD4BF"
+BLUE = "#60A5FA"
+MUTED = "#9FB0C3"
+GRID = "#294158"
 METRIC_LABELS = {
     "talent_depth": "Talent depth",
     "operating_cost": "Cost attractiveness",
@@ -25,23 +26,31 @@ METRIC_LABELS = {
 
 st.markdown("""
 <style>
-:root { --primary-color: #0F9D91; }
-.stApp { background: #F7F9FC; color: #172B3A; }
-.block-container { padding-top: 1.4rem; padding-bottom: 2.4rem; max-width: 1500px; }
-[data-testid="stSidebar"] { background: #10243A; }
-[data-testid="stSidebar"] * { color: #F4F8FB; }
-[data-testid="stSidebar"] [data-baseweb="slider"] div[role="slider"] { background: #0F9D91; }
-[data-testid="stMetric"] { background: white; border: 1px solid #E4EAF0; padding: 16px 18px; border-radius: 14px; box-shadow: 0 2px 8px rgba(16,36,58,.035); }
-[data-testid="stMetricLabel"] { color: #5B6B7A; }
-h1, h2, h3 { color: #10243A; letter-spacing: -0.02em; }
-div[data-testid="stTabs"] button[aria-selected="true"] { color: #0F766E; border-bottom-color: #0F9D91; }
-.stButton > button[kind="primary"] { background: #0F9D91; border-color: #0F9D91; }
-div[data-testid="stAlert"] { border-radius: 12px; }
+:root { --primary-color: #2DD4BF; }
+.stApp { background: #081522; color: #E5EDF5; }
+.block-container { padding-top: 1.25rem; padding-bottom: 2rem; max-width: 1500px; }
+[data-testid="stHeader"] { background: rgba(8,21,34,.92); }
+[data-testid="stSidebar"] { background: #10243A; border-right: 1px solid #294158; }
+[data-testid="stSidebar"] * { color: #E5EDF5; }
+[data-testid="stSidebar"] [data-baseweb="slider"] div[role="slider"] { background: #2DD4BF; }
+[data-testid="stMetric"] { background: #10243A; border: 1px solid #294158; padding: 14px 16px; border-radius: 12px; }
+[data-testid="stMetricLabel"] { color: #9FB0C3; }
+[data-testid="stMetricValue"] { color: #E5EDF5; }
+h1, h2, h3, h4 { color: #E5EDF5; letter-spacing: -0.02em; }
+p, label, .stMarkdown, [data-testid="stCaptionContainer"] { color: #D2DDE8; }
+div[data-testid="stTabs"] button[aria-selected="true"] { color: #2DD4BF; border-bottom-color: #2DD4BF; }
+.stButton > button[kind="primary"] { background: #0F9F91; border-color: #2DD4BF; color: #081522; }
+.stButton > button { border-radius: 9px; }
+[data-testid="stDataFrame"], [data-testid="stTable"] { border: 1px solid #294158; border-radius: 10px; }
+div[data-testid="stAlert"] { border-radius: 10px; background: #10243A; }
+a { color: #60A5FA; }
+hr { border-color: #294158; }
 </style>
 """, unsafe_allow_html=True)
 
+
 st.title("GCC Intelligence")
-st.caption("A decision workspace for evaluating Indian cities for Global Capability Centre setup and expansion.")
+st.caption("LOCATION STRATEGY  /  INDIA  ·  A decision workspace for GCC setup and expansion.")
 
 with st.sidebar:
     st.markdown("## Assessment setup")
@@ -129,7 +138,7 @@ c2.metric("Current leader", best["city"] if best is not None else "Not enough da
 c3.metric("Top score", f'{best["overall_score"]:.1f}/100' if best is not None else "—")
 c4.metric("Average metric coverage", f'{ranked["evidence_coverage"].mean():.0f}%' if not ranked.empty else "0%")
 
-tab1, tab2, tab3 = st.tabs(["City comparison", "Evidence explorer", "Decision brief"])
+tab1, tab2, tab3, tab4 = st.tabs(["City comparison", "Market Signals", "Evidence explorer", "Decision brief"])
 
 with tab1:
     st.subheader("Compare city suitability")
@@ -148,7 +157,7 @@ with tab1:
             )
             chart.update_traces(texttemplate="%{text:.1f}", textposition="outside", cliponaxis=False)
             chart.update_layout(height=330, margin=dict(l=8, r=34, t=12, b=12), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color=NAVY)
-            chart.update_xaxes(gridcolor="#E5EBF0", zeroline=False)
+            chart.update_xaxes(gridcolor=GRID, zeroline=False)
             chart.update_yaxes(showgrid=False)
             st.plotly_chart(chart, use_container_width=True)
     with right:
@@ -159,7 +168,7 @@ with tab1:
         radar_labels = [METRIC_LABELS[k] for k in METRICS]
         radar = go.Figure()
         radar.add_trace(go.Scatterpolar(r=radar_values + radar_values[:1], theta=radar_labels + radar_labels[:1], fill="toself", name=radar_city, line=dict(color=TEAL, width=2), fillcolor="rgba(15,157,145,0.16)"))
-        radar.update_layout(height=330, showlegend=False, margin=dict(l=26, r=26, t=20, b=20), paper_bgcolor="rgba(0,0,0,0)", font_color=NAVY, polar=dict(radialaxis=dict(visible=True, range=[0, 100], gridcolor="#E5EBF0"), angularaxis=dict(gridcolor="#E5EBF0")))
+        radar.update_layout(height=330, showlegend=False, margin=dict(l=26, r=26, t=20, b=20), paper_bgcolor="rgba(0,0,0,0)", font_color=NAVY, polar=dict(bgcolor="rgba(0,0,0,0)", radialaxis=dict(visible=True, range=[0, 100], gridcolor=GRID, color=MUTED), angularaxis=dict(gridcolor=GRID, color=MUTED)))
         st.plotly_chart(radar, use_container_width=True)
         missing = [METRIC_LABELS[k] for k in METRICS if pd.isna(radar_row[k])]
         if missing:
@@ -193,6 +202,85 @@ with tab1:
     )
 
 with tab2:
+    st.subheader("Market Signals")
+    st.caption("Office-market indicators are a proxy for the broader office ecosystem, not direct evidence of GCC-specific demand.")
+    market = None
+    market_error = None
+    if use_database and db_connected:
+        try:
+            market = load_market_observations()
+        except Exception as exc:
+            market_error = type(exc).__name__
+    if market_error:
+        st.error(f"Could not load market observations ({market_error}). Check connection and table initialization.")
+    elif market is None or market.empty:
+        st.info("No market data imported yet. Click 'Initialize database tables', then import gcc_market_observations.csv into market_observations.")
+        st.caption("No market values are invented or substituted from illustrative suitability fixtures.")
+    else:
+        market["value"] = pd.to_numeric(market["value"], errors="coerce")
+        cities = sorted(market["city"].dropna().unique().tolist())
+        focus = st.selectbox("Focus city", cities, index=cities.index("Bengaluru") if "Bengaluru" in cities else 0, key="market_focus_city")
+        chosen = market[market["city"] == focus]
+        gross = chosen[chosen["metric_key"] == "office_gross_leasing"]
+        absorption = chosen[chosen["metric_key"] == "office_net_absorption"]
+        gcc = chosen[chosen["metric_key"] == "gcc_unit_estimate"]
+        def metric_value(frame, period):
+            values = frame.loc[frame["period"].astype(str) == period, "value"]
+            return float(values.iloc[0]) if not values.empty and pd.notna(values.iloc[0]) else None
+        g24, g25 = metric_value(gross, "2024"), metric_value(gross, "2025")
+        a24, a25 = metric_value(absorption, "2024"), metric_value(absorption, "2025")
+        units = metric_value(gcc, "FY26E")
+        k1,k2,k3,k4 = st.columns(4)
+        k1.metric("2025 gross leasing", f"{g25:.1f} mn sq ft" if g25 is not None else "No data imported", f"{g25-g24:+.1f} vs 2024" if g25 is not None and g24 is not None else None)
+        k2.metric("2025 net absorption", f"{a25:.1f} mn sq ft" if a25 is not None else "No data imported", f"{a25-a24:+.1f} vs 2024" if a25 is not None and a24 is not None else None)
+        k3.metric("Gross leasing YoY", f"{(g25/g24-1)*100:+.1f}%" if g25 is not None and g24 not in (None,0) else "No data imported")
+        k4.metric("Estimated GCC units", f"At least {int(units):,}+" if units is not None else "No data imported")
+        st.markdown("#### Office-market gross leasing")
+        st.caption("Overall office-market transactions, excluding term renewals; not GCC-only leasing. Million sq ft.")
+        def office_chart(metric_key, title, caption):
+            frame = market[market["metric_key"] == metric_key].copy()
+            frame["period"] = frame["period"].astype(str)
+            frame = frame[frame["period"].isin(["2024","2025"])]
+            if frame.empty:
+                st.info(f"No observations available for {title.lower()}.")
+                return
+            order = frame[frame["period"] == "2025"].sort_values("value", ascending=True)["city"].tolist()
+            fig = px.bar(frame, x="value", y="city", color="period", barmode="group", orientation="h",
+                         category_orders={"city":order,"period":["2024","2025"]},
+                         color_discrete_map={"2024":"#60A5FA","2025":"#2DD4BF"},
+                         labels={"value":"Million sq ft","city":"","period":"Year"})
+            fig.update_layout(height=max(330,len(order)*40),margin=dict(l=8,r=18,t=8,b=12),
+                paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font_color=NAVY,
+                legend_title_text="",xaxis=dict(gridcolor=GRID,zeroline=False),yaxis=dict(gridcolor="rgba(0,0,0,0)"))
+            st.plotly_chart(fig,use_container_width=True)
+        office_chart("office_gross_leasing","Gross leasing","")
+        st.markdown("#### Net absorption")
+        st.caption("Net change in occupied office space after accounting for space vacated. Million sq ft.")
+        office_chart("office_net_absorption","Net absorption","")
+        st.markdown("#### GCC landscape · FY26E")
+        st.caption("Estimates are lower bounds, not exact audited counts. Numeric bars show lower bounds; labels retain '+'.")
+        gc = market[market["metric_key"] == "gcc_unit_estimate"].copy()
+        gc = gc[gc["period"].astype(str) == "FY26E"].sort_values("value", ascending=True)
+        if not gc.empty:
+            fig = px.bar(gc,x="value",y="city",orientation="h",text=gc["value"].map(lambda v:f"{int(v):,}+"),
+                         color_discrete_sequence=["#2DD4BF"],labels={"value":"Estimated GCC units (lower bound)","city":""})
+            fig.update_traces(textposition="outside",cliponaxis=False)
+            fig.update_layout(height=max(340,len(gc)*38),margin=dict(l=8,r=55,t=8,b=12),
+                paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font_color=NAVY,
+                xaxis=dict(gridcolor=GRID,zeroline=False),yaxis=dict(gridcolor="rgba(0,0,0,0)"))
+            st.plotly_chart(fig,use_container_width=True)
+        with st.expander("Sources, definitions and evidence status"):
+            for source_name, rows in market.groupby("source_name",dropna=False):
+                st.markdown(f"**{source_name}**")
+                for url in rows["source_url"].dropna().unique():
+                    st.markdown(f"[Open source report]({url})")
+                st.caption("Publication date: "+", ".join(rows["source_published_at"].dropna().astype(str).unique()))
+                st.caption("Evidence status: "+", ".join(sorted(rows["evidence_status"].fillna("UNVERIFIED").astype(str).unique())))
+                for caveat in rows["caveat"].dropna().unique():
+                    st.write(caveat)
+        st.download_button("Download loaded market observations",market.to_csv(index=False).encode("utf-8"),file_name="market_observations_export.csv",mime="text/csv")
+
+with tab3:
     st.subheader("Metric-level evidence")
     city_choice = st.selectbox("Choose a city", ranked["city"].tolist(), key="evidence_city")
     city_rows = filtered[filtered["city"] == city_choice].copy()
@@ -212,7 +300,7 @@ with tab2:
         st.caption("Evidence-status counts: " + " · ".join(f"{status}: {int(count)}" for status, count in statuses.value_counts().items()))
     st.caption("A source link should lead to the original publisher and substantiate the specific observation. Database records are not automatically verified.")
 
-with tab3:
+with tab4:
     st.subheader("Decision brief")
     st.write("**Assessment priorities:** " + ", ".join(f"{METRIC_LABELS[k]} ({v})" for k, v in weights.items()))
     if best is not None:
