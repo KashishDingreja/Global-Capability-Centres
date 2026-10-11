@@ -4,6 +4,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from dotenv import load_dotenv
 
+from gcc_intelligence.sample_data import demo_metrics
 from gcc_intelligence.scoring import score_cities, DEFAULT_WEIGHTS, METRICS
 from gcc_intelligence.db import database_status, load_metrics, load_market_observations, initialize_database
 from gcc_intelligence.llm import generate_decision_brief
@@ -60,7 +61,7 @@ with st.sidebar:
     st.caption("Configure the shortlist and what matters most to your organisation.")
     selected_cities = st.multiselect(
         "Cities to compare",
-        ["Bengaluru", "Hyderabad", "Pune", "Chennai", "Mumbai", "Delhi NCR", "Kolkata", "Ahmedabad", "Coimbatore"],
+        ["Bengaluru", "Hyderabad", "Pune", "Chennai"],
         default=["Bengaluru", "Hyderabad", "Pune", "Chennai"],
     )
     st.divider()
@@ -79,54 +80,42 @@ with st.sidebar:
         (st.success if ok else st.error)(message)
 
 metrics = None
-data_mode = "NO CITY SCORES"
+data_mode = "ILLUSTRATIVE DEMO"
 db_connected = False
 db_detail = "PostgreSQL is disabled for this session."
-market = pd.DataFrame()
 if use_database:
     db_connected, db_detail = database_status()
     if db_connected:
         try:
             stored = load_metrics()
             if stored is not None and not stored.empty:
-                # Never rank explicitly synthetic/demo fixtures as real city intelligence.
-                status = stored["evidence_status"].fillna("UNVERIFIED").astype(str).str.upper()
-                usable = stored[~status.isin(["ILLUSTRATIVE", "SYNTHETIC", "DEMO", "DEMO_ONLY"])].copy()
-                if not usable.empty:
-                    metrics = usable
-                    data_mode = "DATABASE CITY SCORES"
-                    db_detail = f"Connected · {len(usable):,} non-demo city metric records loaded."
-                else:
-                    db_detail = "Connected, but city_metrics contains only illustrative/demo records. Those records are excluded from ranking."
+                metrics = stored
+                data_mode = "DATABASE RECORDS"
+                db_detail = f"Connected · {len(stored):,} metric records loaded."
             else:
-                db_detail = "Connected; no normalized city scores found. Using available market observations instead."
+                db_detail = "Connected, but no metric records were found. Showing clearly labelled illustrative demo data."
         except Exception as exc:
-            db_detail = f"City metrics read failed ({type(exc).__name__})."
-        try:
-            loaded_market = load_market_observations()
-            if loaded_market is not None and not loaded_market.empty:
-                market = loaded_market
-        except Exception as exc:
-            st.warning(f"Market observations could not be loaded ({type(exc).__name__}).")
+            db_detail = f"Database read failed ({type(exc).__name__}). Showing illustrative demo data."
+    else:
+        db_detail = f"{db_detail} Showing illustrative demo data."
 
 if metrics is None:
-    metrics = pd.DataFrame(columns=["city", "metric_key", "metric_label", "value", "unit", "source_name", "source_url", "observed_at", "evidence_status", "caveat"])
+    metrics = demo_metrics()
 
-# Never substitute synthetic suitability scores when the database has no scores.
-is_demo = False
-if not use_database:
-    st.info("PostgreSQL is turned off. Enable it in the sidebar to load imported market observations.")
-elif not db_connected:
-    st.warning(f"PostgreSQL is unavailable: {db_detail}")
-elif metrics.empty and market.empty:
-    st.warning("Connected to PostgreSQL, but no city scores or market observations were found. Import the existing market CSV to enable data-backed comparisons.")
-elif metrics.empty:
-    st.info("Using available market observations. No synthetic city suitability scores are being shown.")
+is_demo = data_mode == "ILLUSTRATIVE DEMO"
+if is_demo:
+    st.warning(
+        "DEMO MODE — City values are synthetic fixtures used to demonstrate the workflow. "
+        "They are not verified market facts and must not inform an actual investment decision.",
+        icon="⚠️",
+    )
+else:
+    st.success("DATABASE MODE — The dashboard is using records stored in PostgreSQL. Check each record's evidence status before relying on it.")
 
 with st.expander("Data connection and trust status", expanded=False):
-    st.write(f"**Active data mode:** {data_mode if not metrics.empty else ('MARKET OBSERVATIONS ONLY' if not market.empty else 'NO DATA')}")
+    st.write(f"**Active data mode:** {data_mode}")
     st.write(f"**PostgreSQL:** {db_detail}")
-    st.caption("Office leasing and absorption describe the wider office market, not GCC-only activity. GCC unit figures are lower-bound estimates marked unverified. Neither is automatically a 0–100 suitability score.")
+    st.caption("A successful database connection does not make a metric verified. Source, date, definition, status and caveat should be checked record by record.")
 
 if not selected_cities:
     st.info("Choose at least one city in the sidebar to start comparing.")
@@ -135,51 +124,34 @@ if total_weight <= 0:
     st.error("The total decision weight is zero. Increase at least one priority in the sidebar.")
     st.stop()
 
-filtered = metrics[metrics["city"].isin(selected_cities)].copy() if not metrics.empty else metrics.copy()
-if not market.empty:
-    market = market.copy()
-    market["value"] = pd.to_numeric(market["value"], errors="coerce")
-    market = market[market["city"].isin(selected_cities)].copy()
+filtered = metrics[metrics["city"].isin(selected_cities)].copy()
+if filtered.empty:
+    st.warning("There are no metric records for the selected cities. Add records to PostgreSQL or select other cities.")
+    st.stop()
 
 results = score_cities(filtered, weights)
-if results.empty:
-    ranked = pd.DataFrame({"city": selected_cities})
-    for key in METRICS:
-        ranked[key] = float("nan")
-    ranked["overall_score"] = float("nan")
-    ranked["evidence_coverage"] = 0.0
-else:
-    ranked = pd.DataFrame({"city": selected_cities}).merge(results, on="city", how="left")
-    for key in METRICS:
-        if key not in ranked:
-            ranked[key] = float("nan")
-    ranked["evidence_coverage"] = ranked["evidence_coverage"].fillna(0)
-ranked = ranked.sort_values("overall_score", ascending=False, na_position="last").reset_index(drop=True)
-ranked["rank"] = pd.NA
-scored_indices = ranked[ranked["overall_score"].notna()].sort_values("overall_score", ascending=False).index
-for position, row_index in enumerate(scored_indices, start=1):
-    ranked.loc[row_index, "rank"] = position
-ranked["rank_label"] = ranked["rank"].map(lambda n: f"#{int(n)}" if pd.notna(n) else "Not scored")
+ranked = results.sort_values("overall_score", ascending=False, na_position="last").reset_index(drop=True)
+ranked["rank"] = range(1, len(ranked) + 1)
+ranked["rank_label"] = ranked["rank"].map(lambda n: f"#{n}")
 best_rows = ranked[ranked["overall_score"].notna()]
 best = best_rows.iloc[0] if not best_rows.empty else None
-has_scored_metrics = best is not None
 
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("Cities selected", len(selected_cities))
-c2.metric("Current leader", best["city"] if best is not None else "Not scored")
-c3.metric("Top score", f'{best["overall_score"]:.1f}/100' if best is not None else "Unavailable")
-c4.metric("Market observations", f"{len(market):,}" if not market.empty else "None loaded")
+c1.metric("Cities compared", len(ranked))
+c2.metric("Current leader", best["city"] if best is not None else "Not enough data")
+c3.metric("Top score", f'{best["overall_score"]:.1f}/100' if best is not None else "—")
+c4.metric("Average metric coverage", f'{ranked["evidence_coverage"].mean():.0f}%' if not ranked.empty else "0%")
 
 tab1, tab2, tab3, tab4 = st.tabs(["City comparison", "Market Signals", "Evidence explorer", "Decision brief"])
 
 with tab1:
     st.subheader("Compare city suitability")
-    st.caption("City suitability scores are shown only when normalized 0–100 scores exist. Otherwise, compare raw market indicators below; they are not converted into suitability scores.")
+    st.caption("Scores are weighted averages of the available 0–100 desirability scores. Evidence coverage is separate; it is not a quality guarantee.")
     left, right = st.columns([1.4, 1])
     with left:
         chart_data = ranked[ranked["overall_score"].notna()].sort_values("overall_score")
         if chart_data.empty:
-            st.info("No normalized city suitability scores are available. Use the market-indicator comparison below; no synthetic ranking is being generated.")
+            st.info("No selected city has enough metric data to calculate a score.")
         else:
             chart = px.bar(
                 chart_data, x="overall_score", y="city", orientation="h",
@@ -193,36 +165,24 @@ with tab1:
             chart.update_yaxes(showgrid=False)
             st.plotly_chart(chart, use_container_width=True)
     with right:
-        if has_scored_metrics:
-            st.markdown("#### Metric profile")
-            radar_city = st.selectbox("City profile", ranked["city"].tolist(), key="radar_city")
-            radar_row = ranked[ranked["city"] == radar_city].iloc[0]
-            radar_values = [radar_row[k] if pd.notna(radar_row[k]) else 0 for k in METRICS]
-            radar_labels = [METRIC_LABELS[k] for k in METRICS]
-            radar = go.Figure()
-            radar.add_trace(go.Scatterpolar(r=radar_values + radar_values[:1], theta=radar_labels + radar_labels[:1], fill="toself", name=radar_city, line=dict(color=TEAL, width=2), fillcolor="rgba(46,156,202,0.22)"))
-            radar.update_layout(height=330, showlegend=False, margin=dict(l=26, r=26, t=20, b=20), paper_bgcolor="rgba(0,0,0,0)", font_color=NAVY, polar=dict(bgcolor="rgba(0,0,0,0)", radialaxis=dict(visible=True, range=[0, 100], gridcolor=GRID, color=MUTED), angularaxis=dict(gridcolor=GRID, color=MUTED)))
-            st.plotly_chart(radar, use_container_width=True)
-            missing = [METRIC_LABELS[k] for k in METRICS if pd.isna(radar_row[k])]
-            if missing:
-                st.caption("Missing metrics: " + ", ".join(missing))
-        else:
-            st.markdown("#### Available market indicators")
-            if market.empty:
-                st.caption("No market observations are available for the selected cities.")
-            else:
-                pivot = market[market["period"].astype(str).isin(["2025", "FY26E"])].pivot_table(index="city", columns="metric_key", values="value", aggfunc="first").reset_index()
-                st.dataframe(pivot, use_container_width=True, hide_index=True)
-                st.caption("Values retain original units and definitions; they are not directly comparable across different metric types.")
+        st.markdown("#### Metric profile")
+        radar_city = st.selectbox("City profile", ranked["city"].tolist(), key="radar_city")
+        radar_row = ranked[ranked["city"] == radar_city].iloc[0]
+        radar_values = [radar_row[k] if pd.notna(radar_row[k]) else 0 for k in METRICS]
+        radar_labels = [METRIC_LABELS[k] for k in METRICS]
+        radar = go.Figure()
+        radar.add_trace(go.Scatterpolar(r=radar_values + radar_values[:1], theta=radar_labels + radar_labels[:1], fill="toself", name=radar_city, line=dict(color=TEAL, width=2), fillcolor="rgba(46,156,202,0.22)"))
+        radar.update_layout(height=330, showlegend=False, margin=dict(l=26, r=26, t=20, b=20), paper_bgcolor="rgba(0,0,0,0)", font_color=NAVY, polar=dict(bgcolor="rgba(0,0,0,0)", radialaxis=dict(visible=True, range=[0, 100], gridcolor=GRID, color=MUTED), angularaxis=dict(gridcolor=GRID, color=MUTED)))
+        st.plotly_chart(radar, use_container_width=True)
+        missing = [METRIC_LABELS[k] for k in METRICS if pd.isna(radar_row[k])]
+        if missing:
+            st.caption("Missing metrics: " + ", ".join(missing))
     display_cols = ["rank", "city", "overall_score", "evidence_coverage", *METRICS]
     display = ranked[display_cols].rename(columns={
         "rank": "Rank", "city": "City", "overall_score": "Suitability score",
         "evidence_coverage": "Metric coverage (%)", **{k: METRIC_LABELS[k] for k in METRICS},
     })
-    if has_scored_metrics:
-        st.dataframe(display.round(1), use_container_width=True, hide_index=True)
-    else:
-        st.caption("Suitability scores are unavailable until normalized city_metrics are supplied. The market indicators above are the current data-backed comparison.")
+    st.dataframe(display.round(1), use_container_width=True, hide_index=True)
     if best is not None:
         st.markdown("#### What is driving this result?")
         active_metrics = [k for k in METRICS if weights.get(k, 0) > 0 and pd.notna(best[k])]
@@ -248,9 +208,16 @@ with tab1:
 with tab2:
     st.subheader("Market Signals")
     st.caption("Office-market indicators are a proxy for the broader office ecosystem, not direct evidence of GCC-specific demand.")
-    if not use_database or not db_connected:
-        st.info("Enable a working PostgreSQL connection to load the imported market observations.")
-    elif market.empty:
+    market = None
+    market_error = None
+    if use_database and db_connected:
+        try:
+            market = load_market_observations()
+        except Exception as exc:
+            market_error = type(exc).__name__
+    if market_error:
+        st.error(f"Could not load market observations ({market_error}). Check connection and table initialization.")
+    elif market is None or market.empty:
         st.info("No market data imported yet. Click 'Initialize database tables', then import gcc_market_observations.csv into market_observations.")
         st.caption("No market values are invented or substituted from illustrative suitability fixtures.")
     else:
@@ -344,19 +311,6 @@ with tab3:
     if "evidence_status" in city_rows.columns:
         statuses = city_rows["evidence_status"].fillna("UNVERIFIED").astype(str).str.upper()
         st.caption("Evidence-status counts: " + " · ".join(f"{status}: {int(count)}" for status, count in statuses.value_counts().items()))
-    market_city_rows = market[market["city"] == city_choice].copy() if not market.empty else pd.DataFrame()
-    if not market_city_rows.empty:
-        st.markdown("#### Market observations for this city")
-        market_evidence = market_city_rows.rename(columns={
-            "metric_label": "Metric", "value": "Value", "unit": "Unit", "source_name": "Source",
-            "source_url": "Source URL", "period": "Period", "source_published_at": "Published",
-            "evidence_status": "Evidence status", "caveat": "Caveat",
-        })
-        market_cols = [c for c in ["Metric", "Value", "Unit", "Period", "Source", "Source URL", "Published", "Evidence status", "Caveat"] if c in market_evidence.columns]
-        config = {"Source URL": st.column_config.LinkColumn("Source URL", display_text="Open source")} if "Source URL" in market_cols else None
-        st.dataframe(market_evidence[market_cols], use_container_width=True, hide_index=True, column_config=config)
-    elif city_rows.empty:
-        st.info("No source-backed city metrics or market observations are available for this city.")
     st.caption("A source link should lead to the original publisher and substantiate the specific observation. Database records are not automatically verified.")
 
 with tab4:
@@ -367,14 +321,9 @@ with tab4:
     else:
         st.write("**Current leader:** unavailable because selected cities do not have enough scored metrics.")
     st.write("**Decision guardrail:** This is a screening result, not a probability or an investment recommendation. Validate source quality, observation dates, role-specific talent availability and city-level costs before deciding.")
-    if not has_scored_metrics:
-        st.info("A weighted suitability conclusion is unavailable because no normalized city scores are loaded. Market observations support a preliminary discussion, not a definitive city ranking.")
-        if not market.empty:
-            st.markdown("#### Evidence snapshot")
-            brief_market = market[market["period"].astype(str).isin(["2025", "FY26E"])].copy()
-            if not brief_market.empty:
-                st.dataframe(brief_market[["city", "metric_label", "value", "unit", "period", "evidence_status", "source_name"]], use_container_width=True, hide_index=True)
-    if st.button("Draft explanation with Groq", type="primary", disabled=not has_scored_metrics):
+    if is_demo:
+        st.warning("This brief is based on synthetic demo values. Do not reuse its ranking as a real-world conclusion.")
+    if st.button("Draft explanation with Groq", type="primary", disabled=best is None):
         with st.spinner("Preparing an evidence-grounded explanation…"):
             brief, note = generate_decision_brief(ranked, filtered, weights)
         st.markdown(brief)
