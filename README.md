@@ -62,3 +62,31 @@ requirements.txt
 2. Add tests for scoring, missing-data behavior, and weight sensitivity.
 3. Add assessment save/load and decision brief export.
 4. Integrate research APIs/MCP after the core workflow is stable.
+
+
+## Market Signals dataset
+
+The **Market Signals** feature uses a separate `market_observations` table. Office-market volumes and GCC-unit estimates must never be inserted into `city_metrics`, whose values are normalized 0–100 desirability scores.
+
+1. Download `gcc_market_observations.csv` from this repository.
+2. Start Streamlit and click **Initialize database tables** in the sidebar. This creates `market_observations` without seeding or deleting records.
+3. In pgAdmin, import the CSV into `market_observations` as CSV, with header enabled and comma delimiter. Map the 11 same-named CSV columns. Leave `id` and `imported_at` unmapped for PostgreSQL defaults.
+4. Unique key: `(city, metric_key, period, source_name)`. For safe re-imports use a staging table and `INSERT ... ON CONFLICT DO NOTHING`; direct pgAdmin import may report duplicate-key errors rather than skip conflicts.
+5. Refresh Streamlit. Market Signals reads only database observations and shows an empty state until data is imported.
+
+### Data provenance and caveats
+
+- JLL India office-market release, published 15 January 2026: [source](https://www.jll.com/en-in/newsroom/india-s-office-market-scales-unprecedented-highs-with-gross-leasing-activity-at-83-3-million-sq-ft-for-the-year-2025-jll). Gross leasing excludes term renewals; net absorption is the net change in occupied space. These are overall office-market measures, not GCC-only metrics.
+- NASSCOM–Zinnov India GCC Landscape Report 2026, FY26E: [PDF](https://media.zinnov.com/wp-content/uploads/2026/05/zinnov-nasscom-india-gcc-landscape-2026-report.pdf). Figures ending in `+` are lower bounds, not exact audited counts.
+
+### Verification SQL
+
+```sql
+SELECT metric_key, period, COUNT(*) AS observation_count
+FROM market_observations GROUP BY metric_key, period ORDER BY metric_key, period;
+```
+
+```sql
+SELECT city, metric_key, value, unit, period, evidence_status, source_url
+FROM market_observations ORDER BY metric_key, period, city;
+```
