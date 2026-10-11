@@ -10,7 +10,7 @@ An evidence-led prototype for comparing Indian cities for Global Capability Cent
 - Optional Groq-generated explanation (LLM does not calculate rankings)
 - Optional local PostgreSQL persistence
 
-> **Data integrity notice:** The dashboard does not automatically substitute synthetic suitability scores when PostgreSQL is empty or unavailable. Market observations are shown in their original units and are not treated as 0–100 suitability scores. Explicitly illustrative/demo city metric records are excluded from ranking.
+> **Data integrity notice:** Bundled city values are synthetic fixtures for demonstrating the workflow. They are not verified market facts and must not be used for investment decisions. Replace them with observations from credible sources and retain source URLs, observation dates, definitions, and caveats.
 
 ## Run locally (Windows PowerShell)
 
@@ -27,7 +27,7 @@ An evidence-led prototype for comparing Indian cities for Global Capability Cent
    ```powershell
    streamlit run app.py
    ```
-   When PostgreSQL is blank or unavailable, the app shows a connection warning and does not invent city scores. Market Signals and evidence-backed comparisons require the database connection.
+   It uses clearly labelled illustrative data when `DATABASE_URL` is blank or PostgreSQL is unavailable.
 
 ## Local PostgreSQL with pgAdmin
 
@@ -57,16 +57,11 @@ requirements.txt
 .env.example
 ```
 
-## Prototype data behavior
-- City comparison, Evidence explorer, Market Signals and Decision brief use the same selected-city scope.
-- `market_observations` stores raw office-market/GCC indicators; these retain their source units and are not converted into suitability scores.
-- `city_metrics` is only for normalized 0–100 desirability scores. Rows explicitly marked `ILLUSTRATIVE`, `SYNTHETIC`, `DEMO`, or `DEMO_ONLY` are excluded from rankings.
-- If normalized scores are missing, the app presents available market indicators and evidence instead of generating a definitive city ranking.
-
 ## Planned next steps
-1. Add tests for scoring, missing-data behavior, and weight sensitivity.
-2. Add assessment save/load and decision brief export.
-3. Integrate research APIs/MCP after the core workflow is stable.
+1. Replace synthetic fixtures with a curated evidence dataset and source registry.
+2. Add tests for scoring, missing-data behavior, and weight sensitivity.
+3. Add assessment save/load and decision brief export.
+4. Integrate research APIs/MCP after the core workflow is stable.
 
 
 ## Market Signals dataset
