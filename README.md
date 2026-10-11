@@ -10,7 +10,7 @@ An evidence-led prototype for comparing Indian cities for Global Capability Cent
 - Optional Groq-generated explanation (LLM does not calculate rankings)
 - Optional local PostgreSQL persistence
 
-> **Data integrity notice:** Bundled city values are synthetic fixtures for demonstrating the workflow. They are not verified market facts and must not be used for investment decisions. Replace them with observations from credible sources and retain source URLs, observation dates, definitions, and caveats.
+> **Data integrity notice:** The dashboard does not automatically substitute synthetic suitability scores when PostgreSQL is empty or unavailable. Market observations are shown in their original units and are not treated as 0–100 suitability scores. Explicitly illustrative/demo city metric records are excluded from ranking.
 
 ## Run locally (Windows PowerShell)
 
@@ -27,7 +27,7 @@ An evidence-led prototype for comparing Indian cities for Global Capability Cent
    ```powershell
    streamlit run app.py
    ```
-   It uses clearly labelled illustrative data when `DATABASE_URL` is blank or PostgreSQL is unavailable.
+   When PostgreSQL is blank or unavailable, the app shows a connection warning and does not invent city scores. Market Signals and evidence-backed comparisons require the database connection.
 
 ## Local PostgreSQL with pgAdmin
 
