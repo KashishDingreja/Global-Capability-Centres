@@ -1,0 +1,1 @@
+"""GCC Intelligence application package."""
