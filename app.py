@@ -10,6 +10,7 @@ from gcc_intelligence.scoring import score_cities, DEFAULT_WEIGHTS, METRICS
 from gcc_intelligence.db import database_status, load_metrics, load_market_observations, initialize_database
 from gcc_intelligence.llm import generate_decision_brief
 from gcc_intelligence.research.graph import run_market_research
+from gcc_intelligence.config import get_setting
 
 load_dotenv()
 st.set_page_config(page_title="GCC Intelligence", page_icon="🌐", layout="wide")
@@ -344,11 +345,11 @@ with tab5:
             max_chars=500,
         )
         run_research = st.form_submit_button("Research this city", type="primary")
-    if not os.getenv("TAVILY_API_KEY", "").strip():
+    if not get_setting("TAVILY_API_KEY"):
         st.info("Live research is not configured yet. Add TAVILY_API_KEY to your local .env file. The rest of the dashboard works without it.")
     if run_research:
-        if not os.getenv("TAVILY_API_KEY", "").strip():
-            st.error("TAVILY_API_KEY is missing. Add the key to .env and restart the app.")
+        if not get_setting("TAVILY_API_KEY"):
+            st.error("TAVILY_API_KEY was not found. For local runs, put it in the project-root .env file. For Streamlit Community Cloud, add it under App Settings → Secrets. Then restart/redeploy the app.")
         else:
             try:
                 with st.spinner("Searching sources, checking evidence fields, and preparing a brief…"):
@@ -357,7 +358,7 @@ with tab5:
                 st.markdown(research_result.get("summary", "No summary returned."))
                 if research_result.get("run_id"):
                     st.caption(f"Research run saved to PostgreSQL · run ID {research_result['run_id']}")
-                elif os.getenv("DATABASE_URL", "").strip():
+                elif get_setting("DATABASE_URL"):
                     st.caption("Research completed, but the run could not be saved to PostgreSQL.")
                 else:
                     st.caption("DATABASE_URL is not configured; results were kept in this session only.")
