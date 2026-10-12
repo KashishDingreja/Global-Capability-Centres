@@ -3,10 +3,11 @@ from __future__ import annotations
 import os
 from typing import Any
 from tavily import TavilyClient
+from gcc_intelligence.config import get_setting
 
 
 def search_market_evidence(query: str, max_results: int = 4) -> list[dict[str, Any]]:
-    api_key = os.getenv("TAVILY_API_KEY", "").strip()
+    api_key = get_setting("TAVILY_API_KEY")
     if not api_key:
         raise RuntimeError("TAVILY_API_KEY is not configured.")
     client = TavilyClient(api_key=api_key)
