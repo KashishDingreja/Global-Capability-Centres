@@ -354,6 +354,13 @@ with tab5:
             try:
                 with st.spinner("Searching sources, checking evidence fields, and preparing a brief…"):
                     research_result = run_market_research(research_city, research_question)
+                guardrail_status = research_result.get("guardrail_status", "allow")
+                if guardrail_status == "warn":
+                    st.warning("LLM guardrail warning: this request may involve legal or regulatory uncertainty. Research was stopped before web search. Verify land title, permitted land use/zoning, and required local approvals with qualified local professionals and relevant authorities before acting.")
+                elif guardrail_status == "block":
+                    st.error("LLM guardrail: this request appears to seek help with potentially illegal or unauthorized activity. Live search was not run. I can help research lawful land acquisition or leasing, title verification, zoning, and approval requirements instead.")
+                elif guardrail_status == "unavailable":
+                    st.error("LLM guardrail could not complete; live search was stopped safely.")
                 st.markdown("### Research brief")
                 st.markdown(research_result.get("summary", "No summary returned."))
                 if research_result.get("run_id"):
@@ -400,7 +407,7 @@ with tab5:
                     st.info("No usable source records were returned for this run.")
             except Exception as exc:
                 st.error(f"Live research could not complete ({type(exc).__name__}). Check the API key, provider quota, and network access.")
-    st.warning("Trust guardrail: URL validation is not factual verification. All search results are labelled UNVERIFIED until reviewed; live findings never modify the synthetic demo metrics or ranking.")
+    st.warning("Trust guardrails: an LLM screens each query before search; WARN/BLOCK decisions stop retrieval. The classifier can make mistakes and is not legal advice. URL validation is not factual verification. Search results remain UNVERIFIED and never modify demo metrics or rankings.")
 
 st.divider()
 st.caption("GCC Intelligence MVP · Deterministic scoring · PostgreSQL persistence · Optional Groq explanation · On-demand live research")
