@@ -9,6 +9,7 @@ import os
 from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
+from gcc_intelligence.config import get_setting
 
 from gcc_intelligence.research.tavily_client import search_market_evidence
 from gcc_intelligence.research.evidence import validate_evidence
@@ -73,7 +74,7 @@ def summary_node(state: ResearchState) -> ResearchState:
             )
         }
     # Use Groq only when configured; the no-key path remains useful and sourced.
-    api_key = os.getenv("GROQ_API_KEY", "").strip()
+    api_key = get_setting("GROQ_API_KEY")
     if not api_key:
         bullets = [
             f'- **{item["title"]}** — {item["snippet"]} ([source]({item["url"]}))'
@@ -82,7 +83,7 @@ def summary_node(state: ResearchState) -> ResearchState:
         return {"summary": "Groq is not configured, so here are the retrieved sources without an AI synthesis:\n\n" + "\n".join(bullets)}
     try:
         from langchain_groq import ChatGroq
-        model_name = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+        model_name = get_setting("GROQ_MODEL", "openai/gpt-oss-120b")
         llm = ChatGroq(model=model_name, api_key=api_key, temperature=0.1)
         prompt = f"""You are assisting with a GCC location-strategy prototype.
 Answer the user's research question using ONLY the source records below.
@@ -140,7 +141,7 @@ def run_market_research(city: str, question: str) -> dict[str, Any]:
     question = question.strip()
     if not city or not question:
         raise ValueError("Both city and research question are required.")
-    if not os.getenv("TAVILY_API_KEY", "").strip():
+    if not get_setting("TAVILY_API_KEY"):
         raise RuntimeError("TAVILY_API_KEY is not configured. Add it to your local .env file.")
     graph = build_research_graph()
     return graph.invoke({
