@@ -361,6 +361,8 @@ with tab5:
                     st.error("LLM guardrail: this request appears to seek help with potentially illegal or unauthorized activity. Live search was not run. I can help research lawful land acquisition or leasing, title verification, zoning, and approval requirements instead.")
                 elif guardrail_status == "unavailable":
                     st.error("LLM guardrail could not complete; live search was stopped safely.")
+                if guardrail_status in {"warn", "block"} and research_result.get("guardrail_reason"):
+                    st.caption("Guardrail assessment: " + research_result["guardrail_reason"])
                 st.markdown("### Research brief")
                 st.markdown(research_result.get("summary", "No summary returned."))
                 if research_result.get("run_id"):
