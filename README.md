@@ -8,13 +8,13 @@ An evidence-led prototype for comparing Indian cities for Global Capability Cent
 - Deterministic Python scoring and evidence coverage
 - Evidence explorer with source and caveat fields
 - Optional Groq-generated explanation (LLM does not calculate rankings)
-- On-demand live market research via Tavily Search + LangGraph workflow, with optional Groq synthesis
+- On-demand live market research via Tavily Search + LangGraph workflow, with Groq-based pre-search query guardrail and evidence-grounded synthesis
 - Source-level evidence validation, CSV export, and optional PostgreSQL research history
 - Optional local PostgreSQL persistence
 
 > **Data integrity notice:** Bundled city values are synthetic fixtures for demonstrating the workflow. They are not verified market facts and must not be used for investment decisions. Replace them with observations from credible sources and retain source URLs, observation dates, definitions, and caveats.
 
-## Run locally (Windows PowerShell)
+## Live research guardrail\n\nBefore any Tavily request, Groq classifies the user query as `ALLOW`, `WARN`, or `BLOCK`. `ALLOW` proceeds to bounded search; `WARN` and `BLOCK` stop before retrieval and show a compliance-oriented message. If Groq is missing, errors, or returns invalid output, the workflow fails closed and makes no search request. Retrieved page text is treated as untrusted input in the synthesis prompt. This is an LLM screening layer, not a legal opinion or a guarantee against every unsafe or misclassified query. Keep the classifier prompt and decision rules under review and test representative benign, ambiguous, and clearly unlawful queries.\n\n## Run locally (Windows PowerShell)
 
 1. Install Python 3.11 or newer.
 2. Create and activate an environment:
@@ -24,7 +24,7 @@ An evidence-led prototype for comparing Indian cities for Global Capability Cent
    python -m pip install --upgrade pip
    pip install -r requirements.txt
    ```
-3. Copy `.env.example` to `.env`. Add `TAVILY_API_KEY` for live research and `GROQ_API_KEY` for AI-generated summaries. Both are optional; keep keys out of Git.
+3. Copy `.env.example` to `.env`. Add `TAVILY_API_KEY` for web search and `GROQ_API_KEY` for the LLM query guardrail and AI-generated summaries. Live research fails closed (does not search) if the LLM guardrail is unavailable. Keep keys out of Git.
 4. Run the demo without PostgreSQL first:
    ```powershell
    streamlit run app.py
