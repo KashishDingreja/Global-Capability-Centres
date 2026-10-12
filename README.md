@@ -69,6 +69,7 @@ requirements.txt
 The **Live Research** tab runs a bounded LangGraph workflow on demand. It creates up to three search queries, calls Tavily Search with at most four results per query, validates URL/required fields, optionally asks Groq for a source-grounded synthesis, and can save the run and evidence to PostgreSQL. Research results are exported as CSV and shown with source links.
 
 - Set `TAVILY_API_KEY` to enable live research. Set `GROQ_API_KEY` to enable synthesis; without it, source snippets are shown directly.
+- Local development: place `.env` in the repository root (same directory as `app.py`) and use `TAVILY_API_KEY=your_key` with no quotes required. Hosted Streamlit: add `TAVILY_API_KEY` in App Settings → Secrets instead of relying on a local `.env` file. Restart/redeploy after changing secrets.
 - Keep requests on demand to control free-tier usage. Provider quotas/rate limits may change; this prototype does not intentionally configure paid fallbacks.
 - `market_research_evidence.evidence_status` remains `UNVERIFIED`. Structural URL checks are not fact-checking or independent corroboration.
 - The workflow never writes to `city_metrics` and never changes suitability scores. Synthetic demo fallback and the existing UI theme remain unchanged.
